@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import IncubationPanel from '../components/incubation/IncubationPanel'
+import NotePanel from '../components/note/NotePanel'
 import { supabase } from '../lib/supabase'
 
 type IdeaType = 'product' | 'creative' | 'research'
@@ -227,10 +228,18 @@ export default function IdeaDetailPage() {
 
         <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 14 }}>
           <h3 style={{ marginTop: 0 }}>笔记面板</h3>
-          <p style={{ color: '#6B7280' }}>这里将展示 Markdown 编辑器和预览。</p>
-          <pre style={{ background: '#F9FAFB', padding: 10, borderRadius: 6, minHeight: 150 }}>
-            {idea.final_note || '暂无笔记内容'}
-          </pre>
+          <NotePanel
+            idea={{
+              id: idea.id,
+              idea_type: idea.idea_type,
+              raw_input: idea.raw_input,
+              collected: idea.collected,
+              final_note: idea.final_note,
+            }}
+            onPatchIdea={async (patch) => {
+              await patchIdea(patch)
+            }}
+          />
         </section>
       </div>
     </section>
