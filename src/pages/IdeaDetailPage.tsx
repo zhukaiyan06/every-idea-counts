@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
+import IncubationPanel from '../components/incubation/IncubationPanel'
 import { supabase } from '../lib/supabase'
 
 type IdeaType = 'product' | 'creative' | 'research'
@@ -13,6 +14,9 @@ interface IdeaItem {
   raw_input: string
   status: IdeaStatus
   final_note?: string | null
+  current_state?: string | null
+  turn_count_in_state?: number | null
+  collected?: Record<string, string> | null
   created_at: string
   updated_at: string
   unsynced?: boolean
@@ -25,6 +29,9 @@ interface StoredIdea {
   raw_input?: string
   status?: IdeaStatus
   final_note?: string | null
+  current_state?: string | null
+  turn_count_in_state?: number | null
+  collected?: Record<string, string> | null
   created_at?: string
   updated_at?: string
 }
@@ -50,6 +57,9 @@ function normalizeIdea(raw: StoredIdea, unsynced = false): IdeaItem {
     raw_input: raw.raw_input || '',
     status: raw.status || 'draft',
     final_note: raw.final_note,
+    current_state: raw.current_state,
+    turn_count_in_state: raw.turn_count_in_state,
+    collected: raw.collected,
     created_at: raw.created_at || new Date().toISOString(),
     updated_at: raw.updated_at || new Date().toISOString(),
     unsynced,
@@ -75,7 +85,7 @@ export default function IdeaDetailPage() {
 
       const { data, error: dbError } = await supabase
         .from('ideas')
-        .select('id, idea_type, title, raw_input, status, final_note, created_at, updated_at')
+        .select('id, idea_type, title, raw_input, status, final_note, current_state, turn_count_in_state, collected, created_at, updated_at')
         .eq('id', id)
         .maybeSingle()
 
@@ -130,6 +140,27 @@ export default function IdeaDetailPage() {
     setIdea((prev) => (prev ? { ...prev, status: nextStatus, updated_at: new Date().toISOString() } : prev))
   }
 
+  const patchIdea = async (patch: Partial<IdeaItem>) => {
+    if (!idea) return
+
+    if (idea.unsynced) {
+      const localUnsynced = JSON.parse(localStorage.getItem('unsynced-ideas') || '[]') as StoredIdea[]
+      const next = localUnsynced.map((item) =>
+        item.id === idea.id ? { ...item, ...patch, updated_at: patch.updated_at || new Date().toISOString() } : item,
+      )
+      localStorage.setItem('unsynced-ideas', JSON.stringify(next))
+      setIdea((prev) => (prev ? { ...prev, ...patch } : prev))
+      return
+    }
+
+    await supabase
+      .from('ideas')
+      .update(patch)
+      .eq('id', idea.id)
+
+    setIdea((prev) => (prev ? { ...prev, ...patch } : prev))
+  }
+
   if (loading) {
     return <section style={{ padding: 20 }}>加载中...</section>
   }
@@ -177,8 +208,21 @@ export default function IdeaDetailPage() {
       >
         <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 14 }}>
           <h3 style={{ marginTop: 0 }}>孵化面板</h3>
-          <p style={{ color: '#6B7280' }}>这里将展示阶段问题、Answer/Ask AI 切换和继续孵化操作。</p>
-          <pre style={{ background: '#F9FAFB', padding: 10, borderRadius: 6 }}>{idea.raw_input}</pre>
+          <IncubationPanel
+            idea={{
+              id: idea.id,
+              idea_type: idea.idea_type,
+              raw_input: idea.raw_input,
+              current_state: idea.current_state,
+              turn_count_in_state: idea.turn_count_in_state,
+              collected: idea.collected,
+              unsynced: idea.unsynced,
+            }}
+            onPatchIdea={async (patch) => {
+              await patchIdea(patch)
+            }}
+            onGenerateNote={() => {}}
+          />
         </section>
 
         <section style={{ border: '1px solid #ddd', borderRadius: 8, padding: 14 }}>
