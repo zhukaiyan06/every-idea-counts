@@ -6,13 +6,21 @@ import remarkGfm from 'remark-gfm'
 
 import { supabase } from '../../lib/supabase'
 
-type IdeaType = 'product' | 'creative' | 'research'
+type IdeaType = "product" | "creative" | "research"
+type CaptureMode = "quick" | "deep"
+
+type DeepAnswers = {
+  q1: string
+  q2: string
+  q3: string
+}
 
 interface NoteIdea {
   id: string
   idea_type: IdeaType
   raw_input: string
-  collected?: Record<string, string> | null
+  capture_mode?: CaptureMode
+  deep_answers?: DeepAnswers
   final_note?: string | null
 }
 
@@ -71,14 +79,15 @@ export default function NotePanel({ idea, onPatchIdea }: NotePanelProps) {
   const handleGenerateNote = async () => {
     setGenerating(true)
 
-    const { data, error } = await supabase.functions.invoke('ai_extract_note', {
+    const { data, error } = await supabase.functions.invoke("ai_extract_note", {
       body: {
         idea_id: idea.id,
         idea_type: idea.idea_type,
         raw_input: idea.raw_input,
-        collected: idea.collected || {},
-        timestamp: new Date().toISOString(),
-      },
+        capture_mode: idea.capture_mode || "quick",
+        deep_answers: idea.deep_answers,
+        timestamp: new Date().toISOString()
+      }
     })
 
     const generated = !error && data?.markdown
@@ -109,18 +118,18 @@ export default function NotePanel({ idea, onPatchIdea }: NotePanelProps) {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
         <button type="button" onClick={handleSave} disabled={saving || generating}>
-          {saving ? '保存中...' : 'Save'}
+          {saving ? "保存中..." : "保存"}
         </button>
         <button type="button" onClick={handleGenerateNote} disabled={saving || generating}>
-          {generating ? 'Generating...' : 'Generate Note'}
+          {generating ? "生成中..." : "生成笔记"}
         </button>
         <button type="button" onClick={handleExportMarkdown} disabled={generating}>
-          Export Markdown
+          导出 Markdown
         </button>
         <button type="button" onClick={handleExportHtml} disabled={generating}>
-          Export HTML
+          导出 HTML
         </button>
       </div>
 
