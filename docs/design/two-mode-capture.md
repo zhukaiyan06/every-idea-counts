@@ -2,7 +2,9 @@
 
 > 版本：2.0
 > 日期：2026-03-06
-> 状态：设计中
+> 状态：✅ 已实现（2026-03-06）
+> 
+> **实现说明**: Phase 1-2 已完成。CapturePage 已重构为两模式UI，ai_extract_note 已支持 quick/deep 模式。Phase 3（继续深入挖掘）待实现。
 
 ## 一、设计目标
 
@@ -465,3 +467,172 @@ Q1: 想探索或验证什么问题？
 Q2: 打算用什么方法研究？
 Q3: 已有相关研究有哪些？
 ```
+
+## 十三、UI 动画实现（2026-03-07）
+
+> 版本：v2.1 动画增强
+> 状态：✅ 已实现
+
+### 13.1 模式切换动画
+
+**目标**：在 Quick Capture 和 Deep Incubation 模式切换时，让界面的变化显得自然而非生硬跳变。
+
+**实现效果**：
+
+| 动画 | 实现方式 | 时长 |
+|------|---------|------|
+| 容器高度动态伸缩 | CSS Grid `grid-template-rows: 0fr → 1fr` | 400ms |
+| 问题淡入向上滑动 | `opacity + translateY` 过渡 | 320ms |
+| 问题依次入场 | `transition-delay` 递增 80ms | - |
+| 滑动指示器 | `left` 属性过渡 | 250ms |
+
+**关键代码**：
+
+```typescript
+// 动画时序常量
+const ANIMATION = {
+  containerHeight: 400,  // 容器高度过渡
+  questionStagger: 80,   // 每个问题延迟
+  questionFadeIn: 320,   // 淡入动画时长
+} as const
+
+// AnimatedQuestion 组件
+<div style={{
+  opacity: isVisible ? 1 : 0,
+  transform: isVisible ? 'translateY(0)' : 'translateY(16px)',
+  transition: `opacity ${duration}ms, transform ${duration}ms`,
+  transitionDelay: isVisible ? `${index * 80}ms` : '0ms',
+}}>
+```
+
+### 13.2 "魔法"反馈动画
+
+**目标**：在用户点击"生成笔记"到完成跳转的这段时间内（通常小于 30 秒），提供具有美感的视觉反馈。
+
+**实现效果**：
+
+| 效果 | 实现 | 说明 |
+|------|------|------|
+| 轨道粒子加载 | `orbit` animation | 3个粒子环绕中心旋转 |
+| 呼吸灯效果 | `breathe` animation | 背景渐变脉动，暗示 AI 工作 |
+| 流光进度条 | `shimmer` + `pulse-underline` | 极细进度条底部流光 |
+| 点击微交互 | `scale(0.98)` | 按下缩小反馈 |
+
+**关键代码**：
+
+```css
+/* 轨道粒子动画 */
+@keyframes orbit {
+  0% { transform: rotate(0deg) translateX(8px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(8px) rotate(-360deg); }
+}
+
+/* 呼吸灯效果 */
+@keyframes breathe {
+  0%, 100% { opacity: 0.6; transform: scaleX(0.95); }
+  50% { opacity: 1; transform: scaleX(1.02); }
+}
+
+/* 流光进度条 */
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+```
+
+### 13.3 页面转场动画
+
+**目标**：让用户在从捕获页跳转到想法详情页时，感觉逻辑是连贯的。
+
+**实现效果**：
+
+- 页面淡入 + 缩放效果（`scale(0.98) → scale(1)`）
+- 所有页面通过 `PageTransition` 包装器自动应用过渡
+
+**新增文件**：
+
+| 文件 | 说明 |
+|------|------|
+| `src/components/PageTransition.tsx` | 页面过渡包装组件 |
+| `src/components/AnimatedCard.tsx` | 动画卡片组件（可选使用） |
+
+**关键代码**：
+
+```typescript
+// PageTransition - 页面过渡包装器
+const [isVisible, setIsVisible] = useState(false)
+
+useEffect(() => {
+  const timer = requestAnimationFrame(() => setIsVisible(true))
+  return () => cancelAnimationFrame(timer)
+}, [])
+
+<div style={{
+  opacity: isVisible ? 1 : 0,
+  transform: isVisible ? 'scale(1) translateY(0)' : 'scale(0.98) translateY(8px)',
+  transition: 'opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+}}>
+```
+
+### 13.4 列表交互动画
+
+**目标**：在每周回顾中，让用户在处理"停滞最久"的想法时感到愉悦。
+
+**实现效果**：
+
+| 动画 | 说明 |
+|------|------|
+| **弹性入场** | `fadeInUp` with spring-like cubic-bezier |
+| **悬停反馈** | 向上偏移 4px + scale(1.005) + 阴影加深 |
+| **归档滑出** | `slideOutRight` 向右侧滑出消失 |
+| **删除滑出** | 同样使用滑出动画 |
+
+**关键代码**：
+
+```typescript
+// 退出状态管理
+const [exitingIds, setExitingIds] = useState<Set<string>>(new Set())
+
+// handleArchive 触发动画
+setExitingIds((prev) => new Set([...prev, idea.id]))
+await new Promise((resolve) => setTimeout(resolve, 350)) // 等待动画
+```
+
+```css
+/* 弹性入场 */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 滑出消失 */
+@keyframes slideOutRight {
+  from { transform: translateX(0) scale(1); opacity: 1; }
+  to { transform: translateX(120%) scale(0.95); opacity: 0; }
+}
+```
+
+### 13.5 无障碍支持
+
+所有动画都遵循 `prefers-reduced-motion` 媒体查询，在用户偏好减少动画时自动禁用：
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+### 13.6 文件变更清单
+
+| 文件 | 变更 |
+|------|------|
+| `src/components/PageTransition.tsx` | 新建 - 页面过渡组件 |
+| `src/components/AnimatedCard.tsx` | 新建 - 动画卡片组件 |
+| `src/components/Layout.tsx` | 添加 PageTransition 包装 Outlet |
+| `src/pages/CapturePage.tsx` | 添加模式切换动画和魔法反馈 |
+| `src/pages/LibraryPage.tsx` | 添加列表交互动画 |
+| `src/pages/WeeklyReviewPage.tsx` | 添加列表交互动画 |
+| `src/pages/IdeaDetailPage.tsx` | 导入 StaggeredReveal |

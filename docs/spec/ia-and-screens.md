@@ -6,7 +6,7 @@
 - PWA MVP；单用户；Supabase Auth 仅你可登录
 - 捕获入口：仅 PWA（应用内快捷键 + 首页入口）
 - 想法类型：捕获时手动选择 `product/creative/research`
-- 孵化会话：默认单阶段（1 问 + 可选 1 追问），继续才推进下一阶段
+- **v2.0 捕获模式**: 快速记录（默认，1 API调用）/ 深入孵化（3问题 + 1 API调用）
 - 编辑：Markdown + 实时预览
 - Notion：不直连，仅导出 Markdown/HTML
 - 周回顾：每周回顾视图，默认按“最久未更新”优先

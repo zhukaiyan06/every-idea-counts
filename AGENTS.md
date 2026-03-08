@@ -1,267 +1,154 @@
-# AGENTS.md — Every Idea Counts (v2.0 两模式版)
+# AGENTS.md — Every Idea Counts
 
-> This document provides guidance for agentic coding agents working in this repository.
+> Guidance for agentic coding agents. Updated: 2026-03-08
 
 ## Project Overview
 
-A PWA-first idea capture app with two modes: Quick Capture (1 API call) and Deep Incubation (3 questions + 1 API call).
+PWA-first idea capture app with two modes: **Quick Capture** (1 API call) and **Deep Incubation** (3 questions + 1 API call).
 
-**Core Principles:**
-- **Simple**: Lower barrier, default to "Quick Capture", one-click note generation
-- **Fast**: Minimize API calls, both quick and deep modes require only 1 API call
+**Tech Stack**: React 18 + TypeScript + Vite | Inline styles (no CSS files) | Supabase (Auth + PostgreSQL + RLS + Edge Functions) | GLM/Qwen AI (server-side)
 
-**Tech Stack:**
-- Frontend: React 18 + TypeScript + Vite
-- Styling: Inline styles (no CSS framework)
-- State: Zustand + localStorage for offline
-- Backend: Supabase (Auth + PostgreSQL + RLS + Edge Functions)
-- AI Providers: 智谱AI (GLM) / 通义千问 (Qwen) — server-side only
-
-## Key Changes from v1.0
-
-| Feature | v1.0 | v2.0 |
-|---------|------|------|
-| Capture Mode | Forced 5-stage incubation | Quick (default) / Deep (optional) |
-| API Calls | 10+ calls | 1 call |
-| Deep Questions | AI-generated via router | Frontend static, 3 questions |
-| State Machine | 5 stages with transitions | Removed |
-| ai_router | Required | Deprecated |
+---
 
 ## Build/Lint/Test Commands
 
 ```bash
-# Install dependencies
-npm ci
+# Development
+npm ci                        # Clean install dependencies
+npm run dev                   # Development server (port 5173)
 
-# Development server (port 5173)
-npm run dev
+# Build & Type Check
+npm run build                 # Production build (tsc && vite build)
+npx tsc --noEmit              # Type check only (faster feedback)
 
-# Production build
-npm run build
+# Linting
+npm run lint                  # ESLint with --max-warnings 0
 
-# Preview production build
-npm run preview
+# Unit Tests (Vitest)
+npm test                      # Run all unit tests
+npm test -- src/domain/text.test.ts    # Run single test file
+npm test -- --run             # Run once (no watch)
 
-# Run unit tests (Vitest)
-npm test
-
-# Run single test file
-npm test -- src/domain/text.test.ts
-
-# Run tests in watch mode
-npm test -- --watch
-
-# Run E2E tests (Playwright) — requires Supabase local running
-npm run test:e2e
-
-# Run linting
-npm run lint
-
-# Type check only
-npx tsc --noEmit
+# E2E Tests (Playwright)
+npm run test:e2e              # Requires: supabase start + npm run dev
 ```
 
-## Supabase Local Development
-
-Prerequisites: Docker Desktop running, Supabase CLI installed.
+### Supabase Local Development
 
 ```bash
-# Initialize (first time only)
-supabase init
-
-# Start local stack (Studio: http://localhost:54323)
-supabase start
-
-# Stop local stack
-supabase stop
-
-# View status and get local keys
-supabase status
-
-# Reset database (applies migrations fresh)
-supabase db reset
-
-# Deploy edge function locally
-supabase functions serve
+supabase start                # Start local stack (Studio: localhost:54323)
+supabase stop                 # Stop local stack
+supabase status               # View status and local keys
+supabase db reset             # Reset database + apply migrations
+supabase functions serve      # Run edge functions locally
 ```
 
-Local services:
-- Studio: http://localhost:54323
-- API: http://localhost:54321
-- DB: postgresql://postgres:postgres@localhost:54322/postgres
+**Local Services**: Studio (54323), API (54321), DB (54322)
+
+---
 
 ## Environment Variables
 
-### Frontend (.env or .env.local)
-
+### Frontend (`.env`)
 ```bash
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_ALLOWED_EMAIL=your_authorized_email
+VITE_SUPABASE_URL=your_url
+VITE_SUPABASE_ANON_KEY=your_key
 ```
 
-### Edge Functions (supabase/functions/.env)
-
-**NEVER commit this file.** Required secrets:
-
+### Edge Functions (`supabase/functions/.env`) — **NEVER COMMIT**
 ```bash
-ALLOWED_EMAIL=your_authorized_email
-GLM_API_KEY=your_glm_api_key
+GLM_API_KEY=your_key
 GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-DASHSCOPE_API_KEY=your_dashscope_api_key
+DASHSCOPE_API_KEY=your_key
 DASHSCOPE_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 ```
 
+---
+
 ## Code Style Guidelines
 
-### Imports
-
-- Use relative imports for clarity
-- Group imports: React → external libs → internal modules → types
-- Use `import type` for type-only imports
-- Example:
-  ```typescript
-  import { useState, useEffect } from "react"
-  import { useNavigate } from "react-router-dom"
-  import { supabase } from "../lib/supabase"
-  import type { IdeaRecord, IdeaType } from "../services/offline"
-  ```
-
 ### Formatting
+- **Indent**: 2 spaces
+- **Semicolons**: None (project standard)
+- **Quotes**: Single quotes for `.ts/.tsx`, double quotes for config files
+- **Trailing commas**: None
 
-- Indent: 2 spaces
-- Semicolons: none (project style)
-- Quotes: double quotes for all strings
-- Trailing commas: none
-- Arrow functions: use `const fn = () => {}` for top-level, inline for callbacks
+### Import Order
+```typescript
+import { useState, useEffect } from 'react'           // 1. React first
+import { useNavigate } from 'react-router-dom'        // 2. External libraries
+import { supabase } from '../lib/supabase'             // 3. Internal modules
+import { createId } from '../lib/createId'            // 3. Internal modules
+import type { IdeaRecord } from './types'             // 4. Types last
+```
 
-### TypeScript
-
-- Strict mode enabled (`strict: true` in tsconfig.json)
-- Prefer explicit types for function parameters and return values
-- Use `type` for object shapes, `interface` for extensibility
-- Avoid `any`; use `unknown` with type guards if needed
-- Never use `@ts-ignore`, `@ts-expect-error`, or `as any`
-- Use type-only imports: `import type { X } from "./module"`
+### TypeScript Rules
+- **Strict mode**: Enabled in `tsconfig.json`
+- **Type-only imports**: Always use `import type { X }`
+- **Forbidden**: `any`, `@ts-ignore`, `@ts-expect-error`, `as any`
+- **Prefer**: `type` for object shapes, `interface` for extensibility
 
 ### Naming Conventions
-
-- Components: PascalCase files and exports (`CapturePage.tsx`, `Layout.tsx`)
-- Utilities: camelCase files (`incubation.ts`, `text.ts`)
-- Constants: SCREAMING_SNAKE_CASE for true constants (`STAGE_ORDER`, `DRAFT_KEY`)
-- Database types: match table/column names (`idea_type`, `raw_input`)
-- CSS: inline styles only (no CSS files, no Tailwind)
+| Element | Convention | Example |
+|---------|------------|---------|
+| Components | PascalCase | `CapturePage.tsx`, `NotePanel.tsx` |
+| Utilities | camelCase | `text.ts`, `storage.ts` |
+| Constants | SCREAMING_SNAKE_CASE | `ANIMATION`, `DRAFT_KEY` |
+| Database fields | snake_case | `idea_type`, `owner_id` |
+| Functions | camelCase | `createIdeaLocalFirst()` |
 
 ### Error Handling
+```typescript
+// ✅ Good: Safe fallback
+try {
+  const parsed = JSON.parse(raw)
+  return Array.isArray(parsed) ? parsed : []
+} catch {
+  return []
+}
 
-- Always handle errors explicitly; no empty catch blocks
-- Use typed error responses from Edge Functions
-- Display user-friendly error messages in Chinese (app locale)
-- Log errors to console in development only
+// ❌ Bad: Empty catch
+try { ... } catch { }  // Never do this
+```
 
-### File Structure (v2.0)
+### Styling Pattern
+- **No CSS files or styled-components**
+- Use `style` prop with `React.CSSProperties`
+- Theme access via `useTheme()` hook from `src/design/`
+- Animations via inline `<style>` tags for keyframes
 
+---
+
+## Architecture
+
+### User Flow
+```
+Quick Mode:    Input → Type → Submit → 1 API call → Note
+Deep Mode:     Input → Type → 3 Questions → Submit → 1 API call → Note
+Continue:      Note → Chat → Update (append)
+```
+
+### Directory Structure
 ```
 src/
-├── App.tsx              # Router + root component
-├── main.tsx             # Entry point
-├── vite-env.d.ts        # Vite type declarations
-├── components/          # Reusable UI components
-│   ├── Layout.tsx
-│   ├── note/            # Note panel components
-│   └── capture/         # NEW: Capture mode components
-│       ├── QuickModeForm.tsx
-│       └── DeepModeQuestions.tsx
-├── domain/              # Pure business logic (testable)
-│   ├── text.ts          # Text utilities
-│   └── text.test.ts
-├── hooks/               # Custom React hooks
-│   └── useSession.ts
-├── lib/                 # External service clients
-│   └── supabase.ts
+├── App.tsx              # Router + root layout
+├── components/          # Reusable UI (Layout, note/, capture/)
+├── design/              # Theme system (ThemeProvider, useTheme)
+├── domain/              # Pure business logic (testable, no deps)
+├── hooks/               # Custom React hooks (useSession)
+├── lib/                 # External service clients (supabase, createId)
 ├── pages/               # Route-level page components
-│   ├── CapturePage.tsx  # MODIFIED: Two-mode UI
-│   ├── IdeaDetailPage.tsx
-│   ├── LibraryPage.tsx
-│   ├── WeeklyReviewPage.tsx
-│   └── SettingsPage.tsx
-└── services/            # Application services
-    ├── settings.ts
-    └── offline/         # Offline sync logic
-        ├── index.ts
-        ├── storage.ts
-        ├── sync.ts
-        ├── queue.ts
-        └── types.ts
+└── services/            # Application services (offline/, generateNote)
+
+supabase/
+├── functions/           # Edge Functions (Deno runtime)
+│   ├── ai_extract_note/ # Note generation from raw input
+│   ├── ai_ask/          # Continue digging chat
+│   └── _shared/         # Auth, CORS utilities
+└── migrations/          # Database schema SQL
 ```
 
-## Architecture Notes (v2.0)
-
-### Two Capture Modes
-
-```
-Quick Capture (default):
-  Input → Type → Submit → 1 API call → Note displayed
-
-Deep Incubation:
-  Input → Type → 3 Questions (frontend static) → Submit → 1 API call → Note displayed
-
-Continue Digging:
-  Note displayed → Click button → Free chat → Update note (append)
-```
-
-### Type-Specific Questions (Deep Mode)
-
-**Product:**
-- Q1: 这个想法为哪些用户解决什么问题？
-- Q2: 用户在什么场景下会使用？
-- Q3: 他们现在怎么解决这个问题？
-
-**Creative:**
-- Q1: 主题或核心信息是什么？
-- Q2: 目标受众是谁？为什么感兴趣？
-- Q3: 有什么参考作品或灵感来源？
-
-**Research:**
-- Q1: 想探索或验证什么问题？
-- Q2: 打算用什么方法研究？
-- Q3: 已有相关研究有哪些？
-
-### Edge Functions (v2.0)
-
-**Active:**
-- `ai_extract_note` — Generates Markdown note (supports quick/deep modes)
-- `ai_ask` — Continue Digging mode (free-form Q&A)
-
-**Deprecated:**
-- `ai_router` — No longer needed, deep mode questions are frontend static
-
-### Single-User Gate
-
-MVP enforces single-user access via:
-1. `VITE_ALLOWED_EMAIL` — UI-level check after login
-2. `ALLOWED_EMAIL` secret — Edge Function allowlist verification
-3. RLS policies — Database-level isolation by `owner_id = auth.uid()`
-
-### Offline Strategy (MVP)
-
-- Local storage for drafts and unsynced ideas
-- Background sync queue with Last-Write-Wins conflict resolution
-- No conflict UI for single-user MVP
-- Key: `unsynced-ideas` in localStorage
-
-### PWA Configuration
-
-- Configured in `vite.config.ts` via `vite-plugin-pwa`
-- Manifest: name "Every Idea Counts", short_name "EIC"
-- Start URL: `/capture`
-- Auto-update registration
-- Workbox excludes `/supabase` routes from caching
-
-## Data Model (v2.0)
-
-### IdeaRecord
-
+### Data Model
 ```typescript
 interface IdeaRecord {
   id: string
@@ -270,64 +157,64 @@ interface IdeaRecord {
   title: string
   raw_input: string
   status: 'draft' | 'incubating' | 'completed' | 'archived'
-  
-  // v2.0 new fields
   capture_mode?: 'quick' | 'deep'
-  deep_answers?: {
-    q1: string
-    q2: string
-    q3: string
-  }
-  
-  // Note
+  deep_answers?: { q1: string; q2: string; q3: string }
   final_note?: string | null
-  
-  // v1 compatibility (deprecated but kept)
-  current_state?: string | null
-  turn_count_in_state?: number | null
-  collected?: Record<string, string> | null
-  
-  // Timestamps
   created_at: string
   updated_at: string
 }
 ```
 
-## API Parameters (v2.0)
+---
 
-### ai_extract_note Request
-
-```typescript
-interface ExtractNoteRequest {
-  idea_id: string
-  idea_type: 'product' | 'creative' | 'research'
-  raw_input: string
-  timestamp: string
-  
-  // v2.0 new
-  capture_mode: 'quick' | 'deep'
-  deep_answers?: {
-    q1: string
-    q2: string
-    q3: string
-  }
-}
-```
-
-## Testing Guidelines
+## Testing
 
 ### Unit Tests (Vitest)
-
-- Place test files next to source: `text.test.ts`
-- Test pure functions in `src/domain/`
-- Import from `vitest`: `import { describe, expect, it } from 'vitest'`
+- Place `*.test.ts` next to source files
+- Focus on `src/domain/` for pure functions
+- Import from `vitest`: `describe`, `it`, `expect`
 
 ### E2E Tests (Playwright)
-
 - Located in `e2e/` directory
-- Config: `playwright.config.ts` (Chromium only, single worker)
-- Requires running: `supabase start` + `npm run dev`
+- Prerequisites: `supabase start` + `npm run dev`
 - Base URL: `http://127.0.0.1:4173`
+
+---
+
+## Deployment
+
+```bash
+# 1. Link to remote project
+supabase link --project-ref <ref>
+
+# 2. Push database migrations
+supabase db push
+
+# 3. Set secrets (create supabase/.env.production first)
+supabase secrets set --env-file ./supabase/.env.production
+
+# 4. Deploy Edge Functions
+supabase functions deploy ai_extract_note
+supabase functions deploy ai_ask
+
+# 5. Frontend: deploy dist/ to Vercel/Netlify
+```
+
+**Multi-User Ready**: RLS ensures data isolation. Each user sees only their own ideas.
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `npm run build` fails | Run `npx tsc --noEmit` to see TypeScript errors |
+| E2E tests fail | Ensure `supabase start` is running |
+| Auth errors | Check `.env` has correct URL and anon key |
+| Offline sync issues | Check localStorage key `unsynced-ideas` |
+| AI generation fails | Verify GLM/DASHSCOPE keys in edge function env |
+
+---
 
 ## Key Files Reference
 
@@ -336,33 +223,6 @@ interface ExtractNoteRequest {
 | Two-Mode Design | `docs/design/two-mode-capture.md` |
 | MVP Plan | `docs/plans/2026-03-05-every-idea-counts-pwa-mvp.md` |
 | Product Spec | `docs/spec/unified-spec.md` |
-| Interaction Spec | `docs/spec/interaction-spec.md` |
-| Database Schema | `supabase/migrations/20260305195446_add_ideas_schema.sql` |
-| PWA Config | `vite.config.ts` |
-| ESLint Config | `.eslintrc.cjs` |
-
-## Deprecated Components (v1.0)
-
-The following are no longer actively used but kept for backward compatibility:
-
-- `src/components/incubation/IncubationPanel.tsx`
-- `src/domain/incubation.ts` (state machine logic)
-- `supabase/functions/ai_router/`
-
-## Deployment
-
-See README.md for Supabase remote deployment runbook.
-
-Required secrets for production:
-- `ALLOWED_EMAIL`
-- `GLM_API_KEY`, `GLM_BASE_URL`
-- `DASHSCOPE_API_KEY`, `DASHSCOPE_BASE_URL`
-
-Deployment commands:
-```bash
-supabase link --project-ref <ref>
-supabase db push
-supabase secrets set --env-file ./supabase/.env.production
-supabase functions deploy ai_extract_note
-supabase functions deploy ai_ask
-```
+| Database Schema | `supabase/migrations/*.sql` |
+| Theme System | `src/design/theme.ts`, `src/design/index.ts` |
+| Offline Service | `src/services/offline/index.ts` |
