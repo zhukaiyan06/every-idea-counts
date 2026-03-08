@@ -40,7 +40,8 @@ export function useSession() {
       } catch (error) {
         console.error('Anonymous sign-in error:', error)
       }
-    })
+      
+      setLoading(false)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
