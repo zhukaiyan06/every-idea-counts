@@ -7,14 +7,27 @@ export function useSession() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
+    // Check existing session
+    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      if (existingSession) {
+        setSession(existingSession)
+        setLoading(false)
+        return
+      }
+
+      // No session - sign in anonymously
+      const { data, error } = await supabase.auth.signInAnonymously()
+      if (error) {
+        console.error('Anonymous sign-in failed:', error.message)
+      } else {
+        setSession(data.session)
+      }
       setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session)
+      (_event, newSession) => {
+        setSession(newSession)
       }
     )
 
