@@ -42,6 +42,7 @@ export function useSession() {
       }
       
       setLoading(false)
+    })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
