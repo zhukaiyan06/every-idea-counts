@@ -16,8 +16,6 @@ type ExtractRequest = {
   timestamp: string
   capture_mode: CaptureMode
   deep_answers?: DeepAnswers
-  // v1 compatibility
-  collected?: Record<string, unknown> | Array<unknown>
 }
 
 const IDEA_TYPES = new Set<ExtractRequest["idea_type"]>(["product", "creative", "research"])
@@ -313,11 +311,6 @@ Deno.serve(async (req) => {
     const { data: userData, error: userError } = await supabase.auth.getUser()
     if (userError || !userData?.user) {
       return jsonResponse(401, { error: "Unauthorized" })
-    }
-
-    const allowedEmail = Deno.env.get("ALLOWED_EMAIL")
-    if (allowedEmail && userData.user.email?.toLowerCase() !== allowedEmail.toLowerCase()) {
-      return jsonResponse(403, { error: "Forbidden" })
     }
   }
 
