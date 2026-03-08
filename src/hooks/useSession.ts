@@ -16,13 +16,30 @@ export function useSession() {
       }
 
       // No session - sign in anonymously
-      const { data, error } = await supabase.auth.signInAnonymously()
-      if (error) {
-        console.error('Anonymous sign-in failed:', error.message)
-      } else {
-        setSession(data.session)
+      // Workaround: Use signUp endpoint since /auth/v1/anonymous is not available
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/signup`, {
+          method: 'POST',
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ anonymous: true })
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          // Set the session using the returned tokens
+          await supabase.auth.setSession({
+            access_token: data.access_token,
+            refresh_token: data.refresh_token
+          })
+        } else {
+          console.error('Anonymous sign-in failed')
+        }
+      } catch (error) {
+        console.error('Anonymous sign-in error:', error)
       }
-      setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
