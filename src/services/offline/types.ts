@@ -18,12 +18,7 @@ export interface IdeaRecord {
   
   // Note
   final_note?: string | null
-  
-  // v1 compatibility (deprecated but kept)
-  current_state?: string | null
-  turn_count_in_state?: number | null
-  collected?: Record<string, string> | null
-  
+
   // Timestamps
   created_at: string
   updated_at: string

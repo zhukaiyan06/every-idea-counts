@@ -1,4 +1,5 @@
 import { supabase } from "../../lib/supabase";
+import { createId } from "../../lib/createId";
 import {
 	enqueueMutation,
 	hasPendingMutationsForIdea,
@@ -28,13 +29,39 @@ import type {
 export type { IdeaRecord, IdeaStatus, IdeaType };
 export { startOfflineSyncRunner, SYNC_FAILURE_EVENT, SYNC_UPDATED_EVENT };
 
+const REMOTE_TIMEOUT_MS = 1500;
+
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> {
+	return await new Promise<T>((resolve, reject) => {
+		const timeout = setTimeout(() => {
+			reject(new Error("remote request timeout"));
+		}, timeoutMs);
+
+		Promise.resolve(promise).then(
+			(value) => {
+				clearTimeout(timeout);
+				resolve(value);
+			},
+			(error) => {
+				clearTimeout(timeout);
+				reject(error);
+			},
+		);
+	});
+}
+
+function getTimestamp(value: string): number {
+	const parsed = new Date(value).getTime();
+	return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function createEnvelope(
 	ideaId: string,
 	opType: MutationEnvelope["op_type"],
 	payload: MutationEnvelope["payload"],
 ): MutationEnvelope {
 	return {
-		idempotency_key: crypto.randomUUID(),
+		idempotency_key: createId(),
 		idea_id: ideaId,
 		op_type: opType,
 		payload,
@@ -47,7 +74,10 @@ export async function createIdeaLocalFirst(
 ): Promise<{ idea: IdeaRecord; unsynced: boolean }> {
   if (typeof navigator !== "undefined" && navigator.onLine) {
     try {
-      const { error } = await supabase.from("ideas").insert(idea);
+      const { error } = await withTimeout(
+        supabase.from("ideas").insert(idea),
+        REMOTE_TIMEOUT_MS,
+      );
       if (!error) {
         return { idea, unsynced: false };
       }
@@ -66,9 +96,31 @@ export async function loadIdeasMerged(): Promise<
 > {
 	const localUnsynced = loadUnsyncedIdeas();
 
-	const { data, error } = await supabase
-		.from("ideas")
-		.select("id, idea_type, title, raw_input, status, created_at, updated_at");
+	let data:
+		| {
+				id: string;
+				idea_type: IdeaType;
+				title: string;
+				raw_input: string;
+				status: IdeaStatus;
+				created_at: string;
+				updated_at: string;
+			}[]
+		| null = null;
+	let error: unknown = null;
+
+	try {
+		const response = await withTimeout(
+			supabase
+				.from("ideas")
+				.select("id, idea_type, title, raw_input, status, created_at, updated_at"),
+			REMOTE_TIMEOUT_MS,
+		);
+		data = response.data;
+		error = response.error;
+	} catch {
+		error = new Error("remote request timeout");
+	}
 
 	const syncedIdeas: IdeaRecord[] = error
 		? []
@@ -86,19 +138,60 @@ export async function loadIdeasMerged(): Promise<
 		...item,
 		unsynced: true,
 	}));
-	return [...syncedIdeas, ...unsyncedIdeas];
+
+	const mergedIdeas = new Map<string, IdeaRecord & { unsynced?: boolean }>();
+	for (const item of syncedIdeas) {
+		mergedIdeas.set(item.id, item);
+	}
+
+	for (const item of unsyncedIdeas) {
+		const existing = mergedIdeas.get(item.id);
+		if (!existing) {
+			mergedIdeas.set(item.id, item);
+			continue;
+		}
+
+		if (getTimestamp(item.updated_at) >= getTimestamp(existing.updated_at)) {
+			mergedIdeas.set(item.id, item);
+		}
+	}
+
+	return Array.from(mergedIdeas.values());
 }
 
 export async function loadIdeaById(
 	id: string,
 ): Promise<(IdeaRecord & { unsynced?: boolean }) | null> {
-	const { data, error } = await supabase
-		.from("ideas")
-		.select(
-			"id, idea_type, title, raw_input, status, final_note, current_state, turn_count_in_state, collected, created_at, updated_at",
-		)
-		.eq("id", id)
-		.maybeSingle();
+	let data:
+		| {
+				id: string;
+				idea_type: IdeaType;
+				title: string;
+				raw_input: string;
+				status: IdeaStatus;
+				final_note: string | null;
+				created_at: string;
+				updated_at: string;
+			}
+		| null = null;
+	let error: unknown = null;
+
+	try {
+		const response = await withTimeout(
+			supabase
+				.from("ideas")
+				.select(
+					"id, idea_type, title, raw_input, status, final_note, created_at, updated_at",
+				)
+				.eq("id", id)
+				.maybeSingle(),
+			REMOTE_TIMEOUT_MS,
+		);
+		data = response.data;
+		error = response.error;
+	} catch {
+		error = new Error("remote request timeout");
+	}
 
 	if (!error && data) {
 		return {
@@ -108,9 +201,6 @@ export async function loadIdeaById(
 			raw_input: data.raw_input,
 			status: data.status,
 			final_note: data.final_note,
-			current_state: data.current_state,
-			turn_count_in_state: data.turn_count_in_state,
-			collected: data.collected,
 			created_at: data.created_at,
 			updated_at: data.updated_at,
 			unsynced: false,
@@ -136,13 +226,19 @@ export async function updateIdeaLocalFirst(
 		return;
 	}
 
-  if (typeof navigator !== "undefined" && navigator.onLine) {
-    const { error } = await supabase
-      .from("ideas")
-      .update(patchWithTimestamp)
-      .eq("id", idea.id);
-    if (!error) return;
-  }
+	if (typeof navigator !== "undefined" && navigator.onLine) {
+		try {
+			const { error } = await withTimeout(
+				supabase.from("ideas").update(patchWithTimestamp).eq("id", idea.id),
+				REMOTE_TIMEOUT_MS,
+			);
+			if (!error) return;
+		} catch {
+			upsertUnsyncedIdea(updated);
+			enqueueMutation(createEnvelope(idea.id, opType, patchWithTimestamp));
+			return;
+		}
+	}
 
 	upsertUnsyncedIdea(updated);
 	enqueueMutation(createEnvelope(idea.id, opType, patchWithTimestamp));
@@ -163,10 +259,18 @@ export async function deleteIdeaLocalFirst(idea: IdeaRecord) {
 		return;
 	}
 
-  if (typeof navigator !== "undefined" && navigator.onLine) {
-    const { error } = await supabase.from("ideas").delete().eq("id", idea.id);
-    if (!error) return;
-  }
+	if (typeof navigator !== "undefined" && navigator.onLine) {
+		try {
+			const { error } = await withTimeout(
+				supabase.from("ideas").delete().eq("id", idea.id),
+				REMOTE_TIMEOUT_MS,
+			);
+			if (!error) return;
+		} catch {
+			enqueueMutation(createEnvelope(idea.id, "delete", {}));
+			return;
+		}
+	}
 
 	enqueueMutation(createEnvelope(idea.id, "delete", {}));
 }
