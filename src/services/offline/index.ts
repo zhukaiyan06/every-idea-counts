@@ -29,7 +29,7 @@ import type {
 export type { IdeaRecord, IdeaStatus, IdeaType };
 export { startOfflineSyncRunner, SYNC_FAILURE_EVENT, SYNC_UPDATED_EVENT };
 
-const REMOTE_TIMEOUT_MS = 1500;
+const REMOTE_TIMEOUT_MS = 5000;
 
 async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number): Promise<T> {
 	return await new Promise<T>((resolve, reject) => {
