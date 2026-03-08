@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 .env.*
+
+# Deployment scripts with project-specific keys
+deploy-cloud.sh
+deploy*.sh
