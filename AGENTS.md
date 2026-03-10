@@ -1,12 +1,24 @@
 # AGENTS.md — Every Idea Counts
 
-> Guidance for agentic coding agents. Updated: 2026-03-08
+> Guidance for agentic coding agents. Updated: 2026-03-10
 
 ## Project Overview
 
 PWA-first idea capture app with two modes: **Quick Capture** (1 API call) and **Deep Incubation** (3 questions + 1 API call).
 
 **Tech Stack**: React 18 + TypeScript + Vite | Inline styles (no CSS files) | Supabase (Auth + PostgreSQL + RLS + Edge Functions) | GLM/Qwen AI (server-side)
+
+### Current Repo Status (2026-03-10)
+
+- `npm run lint` passes with **0 errors / 0 warnings** (`--max-warnings 0` is enforced)
+- `npx tsc --noEmit` passes
+- `npm run build` passes
+
+### Agent Rules Files
+
+- `.cursorrules`: not found
+- `.cursor/rules/`: not found
+- `.github/copilot-instructions.md`: not found
 
 ---
 
@@ -43,8 +55,6 @@ supabase db reset             # Reset database + apply migrations
 supabase functions serve      # Run edge functions locally
 ```
 
-**Local Services**: Studio (54323), API (54321), DB (54322)
-
 ---
 
 ## Environment Variables
@@ -61,6 +71,8 @@ GLM_API_KEY=your_key
 GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
 DASHSCOPE_API_KEY=your_key
 DASHSCOPE_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+AI_MAX_TOKENS_QUICK=400
+AI_MAX_TOKENS_DEEP=650
 ```
 
 ---
@@ -77,13 +89,12 @@ DASHSCOPE_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 ```typescript
 import { useState, useEffect } from 'react'           // 1. React first
 import { useNavigate } from 'react-router-dom'        // 2. External libraries
-import { supabase } from '../lib/supabase'             // 3. Internal modules
-import { createId } from '../lib/createId'            // 3. Internal modules
+import { supabase } from '../lib/supabase'            // 3. Internal modules
 import type { IdeaRecord } from './types'             // 4. Types last
 ```
 
 ### TypeScript Rules
-- **Strict mode**: Enabled in `tsconfig.json`
+- **Strict mode**: Enabled
 - **Type-only imports**: Always use `import type { X }`
 - **Forbidden**: `any`, `@ts-ignore`, `@ts-expect-error`, `as any`
 - **Prefer**: `type` for object shapes, `interface` for extensibility
@@ -115,7 +126,6 @@ try { ... } catch { }  // Never do this
 - **No CSS files or styled-components**
 - Use `style` prop with `React.CSSProperties`
 - Theme access via `useTheme()` hook from `src/design/`
-- Animations via inline `<style>` tags for keyframes
 
 ---
 
@@ -131,11 +141,10 @@ Continue:      Note → Chat → Update (append)
 ### Directory Structure
 ```
 src/
-├── App.tsx              # Router + root layout
 ├── components/          # Reusable UI (Layout, note/, capture/)
 ├── design/              # Theme system (ThemeProvider, useTheme)
 ├── domain/              # Pure business logic (testable, no deps)
-├── hooks/               # Custom React hooks (useSession)
+├── hooks/               # Custom React hooks
 ├── lib/                 # External service clients (supabase, createId)
 ├── pages/               # Route-level page components
 └── services/            # Application services (offline/, generateNote)
@@ -200,8 +209,6 @@ supabase functions deploy ai_ask
 # 5. Frontend: deploy dist/ to Vercel/Netlify
 ```
 
-**Multi-User Ready**: RLS ensures data isolation. Each user sees only their own ideas.
-
 ---
 
 ## Troubleshooting
@@ -221,8 +228,7 @@ supabase functions deploy ai_ask
 | Purpose | File |
 |---------|------|
 | Two-Mode Design | `docs/design/two-mode-capture.md` |
-| MVP Plan | `docs/plans/2026-03-05-every-idea-counts-pwa-mvp.md` |
 | Product Spec | `docs/spec/unified-spec.md` |
 | Database Schema | `supabase/migrations/*.sql` |
-| Theme System | `src/design/theme.ts`, `src/design/index.ts` |
+| Theme System | `src/design/theme.ts` |
 | Offline Service | `src/services/offline/index.ts` |
